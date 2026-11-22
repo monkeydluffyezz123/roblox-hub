@@ -1,0 +1,1769 @@
+-- Hub - Script Launcher
+-- Owner: Monkey.d.luffy.ezz
+-- No key. X button closes. Opens the other .txt scripts.
+
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local OWNER = "Monkey.d.luffy.ezz"
+local DISCORD_LINK = "https://discord.gg/sdva5QpvVX"
+local AD_LINK = "https://work.ink/@d073ce32d5874e14/among-us-free-cheat-2026"
+
+-- Folder that holds the .txt scripts. Change this if your local folder differs.
+local SCRIPT_DIR = "scripts"
+
+local BG = Color3.fromRGB(11, 16, 21)
+local PANEL = Color3.fromRGB(17, 23, 29)
+local CARD = Color3.fromRGB(23, 31, 38)
+local GREEN = Color3.fromRGB(0, 214, 152)
+local BLUE = Color3.fromRGB(0, 168, 232)
+local TEXT = Color3.fromRGB(236, 242, 247)
+local MUTED = Color3.fromRGB(122, 138, 148)
+local RED = Color3.fromRGB(236, 76, 86)
+
+local SCRIPTS = {
+    {
+        name = "Ragdoll Playground",
+        file = "ragdoll playground.txt",
+        dir = SCRIPT_DIR,
+        note = "ragdoll playground.txt (key ister)",
+    },
+    {
+        name = "Throw Food For Animals",
+        file = "throw food for animals.txt",
+        dir = SCRIPT_DIR,
+        note = "throw food for animals.txt (key ister)",
+    },
+    {
+        name = "Remote Event Copier",
+        file = "RemoteEventCopier.txt",
+        dir = SCRIPT_DIR,
+        note = "RemoteEventCopier.txt (key ister)",
+    },
+    {
+        name = "Muscle Legends",
+        file = "MuscleLegends.txt",
+        dir = SCRIPT_DIR,
+        note = "MuscleLegends.txt (key ister)",
+    },
+}
+
+-- =========================================================
+-- CLEANUP (re-execution works, no early return)
+-- =========================================================
+local guiParent
+pcall(function()
+    if gethui then
+        guiParent = gethui()
+    end
+end)
+if not guiParent then
+    pcall(function()
+        guiParent = game:GetService("CoreGui")
+    end)
+end
+if not guiParent then
+    guiParent = LP:WaitForChild("PlayerGui")
+end
+
+local function findGui(name)
+    local ok, result = pcall(function()
+        return guiParent:FindFirstChild(name)
+    end)
+    if ok then
+        return result
+    end
+    return nil
+end
+
+local function disconnectAll(list)
+    if not list then
+        return
+    end
+    for _, conn in ipairs(list) do
+        pcall(function()
+            conn:Disconnect()
+        end)
+    end
+end
+
+disconnectAll(_G.HUB_Connections)
+_G.HUB_Connections = {}
+disconnectAll(_G.HUB_WatchConns)
+_G.HUB_WatchConns = {}
+
+local function bind(conn)
+    table.insert(_G.HUB_Connections, conn)
+    return conn
+end
+
+local oldHub = findGui("HubMenu")
+if oldHub then
+    pcall(function()
+        oldHub:Destroy()
+    end)
+end
+
+-- =========================================================
+-- HELPERS
+-- =========================================================
+local function new(className, props, parent)
+    local inst = Instance.new(className)
+    if props then
+        for key, value in pairs(props) do
+            inst[key] = value
+        end
+    end
+    if parent then
+        inst.Parent = parent
+    end
+    return inst
+end
+
+local function round(parent, radius)
+    return new("UICorner", { CornerRadius = UDim.new(0, radius or 8) }, parent)
+end
+
+local function stroke(parent, color, thickness)
+    return new("UIStroke", {
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+        Color = color,
+        Thickness = thickness or 1,
+    }, parent)
+end
+
+local function grad(parent, color1, color2, rotation)
+    return new("UIGradient", {
+        Color = ColorSequence.new(color1, color2),
+        Rotation = rotation or 0,
+    }, parent)
+end
+
+local function tween(inst, duration, props, easing)
+    local ok, animation = pcall(function()
+        return TweenService:Create(
+            inst,
+            TweenInfo.new(duration or 0.18, easing or Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            props
+        )
+    end)
+    if ok and animation then
+        pcall(function()
+            animation:Play()
+        end)
+        return animation
+    end
+    return nil
+end
+
+local function copyText(text)
+    if setclipboard then
+        local ok = pcall(setclipboard, text)
+        if ok then
+            return true
+        end
+    end
+    return false
+end
+
+local function makeDiscordButton(parent, y)
+    local btn = new("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(88, 101, 242),
+        BorderSizePixel = 0,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(1, -92, 0, y or 10),
+        Size = UDim2.new(0, 56, 0, 20),
+        Text = LHt("discord"),
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 9,
+    }, parent)
+    round(btn, 5)
+    bind(btn.Activated:Connect(function()
+        local copied = copyText(DISCORD_LINK)
+        btn.Text = copied and LHt("copied") or LHt("copy_failed")
+        task.delay(1.2, function()
+            if btn.Parent then
+                btn.Text = LHt("discord")
+            end
+        end)
+    end))
+    return btn
+end
+
+local function makeDraggable(frame, handle)
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+
+    bind(handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end))
+
+    bind(handle.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end))
+
+    bind(UserInputService.InputChanged:Connect(function(input)
+        if not frame.Parent then
+            dragging = false
+            return
+        end
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end))
+end
+-- =========================================================
+-- LIFTHUB SETTINGS / LANGUAGE / UPDATES (v2)
+-- All user-facing strings live in LH_TEXT. Key gate, menus,
+-- hub and ads read their text through LHt() so TR/EN stay in sync.
+-- =========================================================
+local function LHReadSavedLanguage()
+    local ok, data = pcall(function()
+        return readfile("lifthub_lang.txt")
+    end)
+    if ok and (data == "EN" or data == "TR") then
+        return data
+    end
+    return nil
+end
+
+local LH_LANG = LHReadSavedLanguage() or "EN"
+pcall(function()
+    if typeof(_G.LIFTHUB_LANG) == "string" then LH_LANG = _G.LIFTHUB_LANG end
+end)
+
+local LH_TEXT = {
+    EN = {
+        updates_title = "LIFTHUB UPDATES",
+        version = "Version 2v",
+        update_lines = {
+            "Version 2v - LIFTHUB RELEASE",
+            "20 Nov 2026 | 06:19 (US time)",
+            "--------------------------------",
+            "NEW   New games added",
+            "NEW   Update notes panel added",
+            "NEW   English + Turkish interface",
+            "NEW   Remote capture script",
+            "NEW   Request scripts on Discord",
+            "INFO  Discord channels are in Turkish",
+            "UI    Menus refreshed",
+            "--------------------------------",
+            "Enjoy! - LiftHub management team.",
+            "Owner: Monkey.d.luffy.ezz",
+            "Owner: RectSlayer",
+        },
+        nav_hubs = "HUBS",
+        nav_updates = "UPDATES",
+        nav_settings = "SETTINGS",
+        nav_language = "LANGUAGE: EN",
+        lang_button = "EN",
+        ad_extra = "EXTRA / ALTERNATIVE",
+        ad_title = "AMONG US FREE CHEAT 2026",
+        ad_desc = "Free script | Updated for 2026",
+        ad_copy = "COPY LINK",
+        ad_copied = "COPIED!",
+        discord = "DISCORD",
+        copied = "COPIED!",
+        copy_failed = "COPY FAILED",
+        close = "X",
+        open = "OPEN",
+        hub_subtitle = "SCRIPT LAUNCHER  |  NO KEY",
+        hub_content_title = "SCRIPT LAUNCHER",
+        hub_content_hint = "Select a script from HUBS. Updates are above Settings.",
+        note_key_path = " (needs key - click to copy path)",
+        status_ready = "Ready. Select a script and press Open.",
+        status_path = "Path copied: ",
+        status_discord = "Discord link copied.",
+        status_module_ready = "Ready. Select a module to begin.",
+        status_toggle_ready = "Ready. Flip a toggle to start.",
+        err_readfile = "readfile unavailable (executor does not support it)",
+        err_not_found = "File not found: ",
+        err_copy_hint = " | Copy the file into the workspace.",
+        err_loadstring = "Executor loadstring is not supported.",
+        err_compile = "Compile error: ",
+        status_opening = "Opening: ",
+        status_error = "Error: ",
+        status_opened = "Opened:  |  closes with X",
+        subtitle_premium = "PREMIUM MENU",
+        subtitle_auto = "AUTO FARM MENU",
+        subtitle_key = "KEY SYSTEM",
+        key_verified = "KEY VERIFIED",
+        key_access = "ACCESS KEY",
+        key_instructions = "Enter your key to continue",
+        key_placeholder = "xxxx-xxxx-xxxx-xxxx",
+        key_paste = "PASTE",
+        key_unlock_menu = "UNLOCK MENU",
+        key_unlock_hub = "UNLOCK HUB",
+        key_get = "GET KEY",
+        key_status_ready = "Key required to continue",
+        key_status_empty = "Enter a key first.",
+        key_status_granted_menu = "Access granted. Loading menu...",
+        key_status_granted_hub = "Access granted. Loading hub...",
+        key_status_invalid = "Invalid key. Check the key and try again.",
+        key_status_pasted_menu = "Key pasted. Press Unlock Menu.",
+        key_status_pasted_hub = "Key pasted. Press Unlock Hub.",
+        key_status_paste_hint = "Press Ctrl+V to paste your key.",
+        key_granted = "ACCESS GRANTED",
+        key_copied = "LINK COPIED!",
+        link_copied = "Link copied to clipboard.",
+        clipboard_unavailable = "Clipboard is not available.",
+        -- Ragdoll Playground
+        rp_premium = "PREMIUM",
+        rp_premium_script = "Premium Script",
+        rp_off = "OFF",
+        rp_on = "ON",
+        rp_toggle_hint = "Starts / stops the premium source",
+        rp_close_hint = "X = close menu and stop premium",
+        rp_ready = "Ready. Open premium.",
+        rp_script_running = "Script running",
+        rp_closed = "Premium closed",
+        rp_missing = "Premium script not added yet",
+        rp_compile_error = "Compile error: ",
+        rp_opened = "Premium opened",
+        rp_script_error = "Premium error: ",
+        rp_finished = "Premium script finished",
+        -- Throw Food For Animals
+        tfa_remote_missing = "Remote not found: ",
+        tfa_stand_error = "Stand_Upgrade error: ",
+        tfa_equip_error = "Plot_EquipBest error: ",
+        tfa_auto_start_off = "Auto Start is off",
+        tfa_waiting_char = "Waiting for character...",
+        tfa_flying_arena = "Flying to arena...",
+        tfa_flight_retry = "Flight failed, retrying...",
+        tfa_arrived = "Arrived at arena. Throwing in 2s...",
+        tfa_throw_sent = "Throw sent. Waiting 15s...",
+        tfa_throw_error = "Throw error: ",
+        tfa_shop_cycle = "Shop_Buy 1..100 / 4s",
+        tfa_shop_missing = "Shop_Buy remote not found",
+        tfa_all_off = "All features turned off",
+        tfa_stand_on = "Auto Stand Upgrade on",
+        tfa_equip_on = "Auto Equip Best on",
+        tfa_no_fly = "Cannot fly: character not found",
+        tfa_flying_manual = "Flying to arena (manual)...",
+        tfa_arrived_manual = "Arrived at arena (manual flight)",
+        tfa_flight_failed = "Flight failed",
+        tfa_buy_on = "Auto Buy on (1..100 / 4s)",
+        tfa_stand_interval = "Every ",
+        tfa_equip_interval = "Every ",
+        tfa_seconds_stand = " s: Stand_Upgrade",
+        tfa_seconds_equip = " s: Plot_EquipBest",
+        tfa_speed = "Speed: ",
+        -- Muscle Legends menu strings
+        -- Throw Food For Animals
+        tfa_off = "OFF",
+        tfa_fly = "FLY",
+        tfa_stop_all = "STOP ALL",
+        tfa_auto_interval = "AUTO INTERVAL",
+        tfa_shop_prefix = "Shop_Buy: ",
+        tfa_row_start_title = "Auto Start",
+        tfa_row_start_sub = "Fly -> 2s -> Throw -> 15s",
+        tfa_row_buy_title = "Auto Buy",
+        tfa_row_buy_sub = "Shop_Buy 1..100 / 4s",
+        -- Muscle Legends menu extras
+        ml_auto_train = "Auto Train",
+        ml_auto_rebirth = "Auto Rebirth",
+        ml_auto_claim = "Auto Claim",
+        ml_auto_train_sub = "Fires training remotes | scans every 5s",
+        ml_auto_rebirth_sub = "Fires rebirth and prestige remotes",
+        ml_auto_claim_sub = "Claims rewards, daily gifts and spins",
+        ml_fly = "Fly",
+        ml_fly_hint = "WASD + Space / Ctrl",
+        ml_noclip = "Noclip",
+        ml_noclip_hint = "Walk through walls",
+        ml_jump = "Infinite Jump",
+        ml_jump_hint = "Jump again in mid-air",
+        ml_afk = "Anti-AFK",
+        ml_afk_hint = "Stay online while idle",
+        ml_bright = "Fullbright",
+        ml_bright_hint = "Bright, clean lighting",
+        ml_reset = "Reset Movement",
+        ml_reset_hint = "Speed 16 | Jump 50",
+        ml_slider_walk = "Walk Speed",
+        ml_slider_jump = "Jump Power",
+        ml_action_rejoin = "REJOIN SERVER",
+        ml_action_new = "NEW SERVER",
+        ml_action_job = "COPY JOB ID",
+        ml_action_reset = "RESET CHARACTER",
+        ml_logo = "ML",
+        ml_title = "MUSCLE LEGENDS",
+        ml_side_a = "MUSCLE",
+        ml_side_b = "LEGENDS",
+        ml_premium = "PREMIUM",
+        ml_nav = "",
+        ml_owner = "OWNER  |  ",
+        ml_reset_action = "RESET",
+        ml_no_other_players = "No other players in this server",
+        ml_action_teleport = "TELEPORT",
+        ml_auto_interval_set = "Auto interval set to ",
+        ml_nav_movement = "MOVEMENT",
+        ml_nav_movement_sub = "Speed, fly and character utilities",
+        ml_nav_misc = "EXTRAS",
+        ml_nav_misc_sub = "Server tools and player teleport",
+        rp_logo = "RP",
+        rp_title = "RAGDOLL PLAYGROUND",
+        tfa_logo = "TFA",
+        tfa_title = "THROW FOOD FOR ANIMALS",
+        rec_logo = "REC",
+        rec_title = "REMOTE EVENT COPIER",
+        ml_status_train = "TRAINING",
+        ml_status_train_desc = "Automate your strength grind",
+        ml_status_connected = "CONNECTED",
+        ml_status_bar = "ML HUB",
+        ml_toggle_off = "OFF",
+        ml_toggle_on = "ON",
+        ml_interval_label = "INTERVAL  0.5s",
+        ml_rescan = "RESCAN",
+        ml_rescan_done = "SCANNED",
+        ml_remote_scan = "REMOTE SCAN",
+        ml_stats = "Train 0 | Rebirth 0 | Claim 0",
+        ml_slider_hint = "Drag the slider to adjust",
+        ml_players = "PLAYERS",
+        ml_refresh = "REFRESH",
+        ml_refresh_done = "REFRESHED",
+        ml_job = "COPY JOB ID",
+        ml_job_copied = "Job ID copied to clipboard.",
+        ml_job_unavailable = "Job ID is not available here.",
+        ml_no_training = "No training remotes found | manual training",
+        ml_no_rebirth = "No rebirth remotes found",
+        ml_no_claim = "No claim remotes found",
+        ml_fly_off = "Fly disabled.",
+        ml_fly_on = "Fly enabled | WASD + Space / Ctrl",
+        ml_fly_notready = "Fly: character not ready.",
+        ml_noclip_off = "Noclip disabled.",
+        ml_noclip_on = "Noclip enabled.",
+        ml_jump_off = "Infinite Jump disabled.",
+        ml_jump_on = "Infinite Jump enabled.",
+        ml_afk_off = "Anti-AFK disabled.",
+        ml_afk_on = "Anti-AFK enabled.",
+        ml_fullbright_off = "Fullbright disabled.",
+        ml_fullbright_on = "Fullbright enabled.",
+        ml_status_reset = "Movement reset | Speed 16 / Jump 50",
+        ml_status_reset_char = "Character reset.",
+        ml_status_reset_miss = "Character not found.",
+        ml_status_teleported = "Teleported to ",
+        ml_status_teleport_failed = "Teleport failed.",
+        ml_status_cannot_teleport = "Cannot teleport to ",
+        ml_status_rejoining = "Rejoining the same server...",
+        ml_status_rejoin_failed = "Rejoin failed: ",
+        ml_status_joining = "Joining a new server...",
+        ml_status_hop_failed = "Server hop failed: ",
+        -- Remote Event Copier strings
+        rec_subtitle = "MONITOR  |  COPY  |  EXECUTE",
+        rec_search = "SEARCH REMOTES",
+        rec_search_hint = "Type a name...  (Enter / 3s auto)",
+        rec_active_on = "Active only: ON",
+        rec_active_off = "Active only: OFF",
+        rec_reset = "RESET",
+        rec_refresh = "REFRESH",
+        rec_owner = "Owner: ",
+        rec_newest = "Newest fired remote stays on top",
+        rec_tracker_on = "tracker on",
+        rec_tracker_listening = "listener mode",
+        rec_tracker_off = "tracker off",
+        rec_execute = "Execute",
+        rec_copy = "Copy",
+        rec_delete = "Delete",
+        rec_copied_code = "Copied code: ",
+        rec_fired = "Fired",
+        rec_exec_copied = "Executed + copied: ",
+        rec_copied = "Copied",
+        rec_removed = "Removed from list: ",
+        rec_press = "Press a game key to trigger a remote, then Refresh.",
+        rec_show_all = "Show all remotes",
+        rec_scanned = "SCANNED",
+    },
+    TR = {
+        updates_title = "LIFTHUB GÜNCELLEMELERİ",
+        version = "Sürüm 2v",
+        update_lines = {
+            "Sürüm 2v - LIFTHUB SÜRÜM NOTLARI",
+            "20 Kasım 2026 | 06:19 (ABD saati)",
+            "--------------------------------",
+            "YENİ  Yeni oyunlar eklendi",
+            "YENİ  Güncelleme notu paneli eklendi",
+            "YENİ  İngilizce + Türkçe arayüz",
+            "YENİ  Remote event alma scripti",
+            "YENİ  Discord'dan script isteyin",
+            "BİLGİ Discord kanalları Türkçe",
+            "UI    Menüler yenilendi",
+            "--------------------------------",
+            "İyi eğlenceler! - LiftHub yönetim ekibi.",
+            "Sahip: Monkey.d.luffy.ezz",
+            "Sahip: RectSlayer",
+        },
+        nav_hubs = "HUBLAR",
+        nav_updates = "GÜNCELLEMELER",
+        nav_settings = "AYARLAR",
+        nav_language = "DİL: TR",
+        lang_button = "TR",
+        ad_extra = "EK / ALTERNATİF",
+        ad_title = "AMONG US FREE CHEAT 2026",
+        ad_desc = "Ücretsiz script | 2026 için güncellendi",
+        ad_copy = "BAĞLANTIYI KOPYALA",
+        ad_copied = "KOPYALANDI!",
+        discord = "DISCORD",
+        copied = "KOPYALANDI!",
+        copy_failed = "KOPYALAMA BAŞARISIZ",
+        close = "X",
+        open = "AÇ",
+        hub_subtitle = "SCRIPT LAUNCHER  |  ANAHTAR YOK",
+        hub_content_title = "SCRIPT BAŞLATICI",
+        hub_content_hint = "HUBS bölümünden bir script seç. Güncellemeler Ayarlar'ın üstünde.",
+        note_key_path = " (anahtar gerekir - yolu kopyalamak için tıkla)",
+        status_ready = "Hazır. Script seç, Open'a bas.",
+        status_path = "Yol kopyalandı: ",
+        status_discord = "Discord bağlantısı kopyalandı.",
+        status_module_ready = "Hazır. Bir modül seç.",
+        status_toggle_ready = "Hazır. Başlatmak için bir anahtar çevir.",
+        err_readfile = "readfile yok (executor desteklemiyor)",
+        err_not_found = "Dosya bulunamadı: ",
+        err_copy_hint = " | Dosyayı workspace'e kopyala.",
+        err_loadstring = "Executor loadstring desteklemiyor.",
+        err_compile = "Derleme hatası: ",
+        status_opening = "Açılıyor: ",
+        status_error = "Hata: ",
+        status_opened = "Açıldı:  |  X ile kapanır",
+        subtitle_premium = "PREMIUM MENÜ",
+        subtitle_auto = "OTOMATİK ÇİFTLİK MENÜSÜ",
+        subtitle_key = "ANAHTAR SİSTEMİ",
+        key_verified = "ANAHTAR DOĞRULANDI",
+        key_access = "ANAHTAR",
+        key_instructions = "Devam etmek için anahtarını gir",
+        key_placeholder = "xxxx-xxxx-xxxx-xxxx",
+        key_paste = "YAPIŞTIR",
+        key_unlock_menu = "MENÜYÜ AÇ",
+        key_unlock_hub = "HUB'U AÇ",
+        key_get = "ANAHTAR AL",
+        key_status_ready = "Devam etmek için anahtar gerekli",
+        key_status_empty = "Önce bir anahtar gir.",
+        key_status_granted_menu = "Anahtar kabul edildi. Menü yükleniyor...",
+        key_status_granted_hub = "Anahtar kabul edildi. Hub yükleniyor...",
+        key_status_invalid = "Yanlış anahtar. Kontrol edip tekrar dene.",
+        key_status_pasted_menu = "Anahtar yapıştırıldı. Menüyü Aç'a bas.",
+        key_status_pasted_hub = "Anahtar yapıştırıldı. Hub'u Aç'a bas.",
+        key_status_paste_hint = "Anahtarı yapıştırmak için Ctrl+V'ye bas.",
+        key_granted = "ANAHTAR KABUL EDİLDİ",
+        key_copied = "BAĞLANTI KOPYALANDI!",
+        link_copied = "Bağlantı panoya kopyalandı.",
+        clipboard_unavailable = "Pano kullanılamıyor.",
+        rp_premium = "PREMIUM",
+        rp_premium_script = "Premium Script",
+        rp_off = "KAPALI",
+        rp_on = "AÇIK",
+        rp_toggle_hint = "Premium kaynağı başlatır / durdurur",
+        rp_close_hint = "X = menüyü kapat ve premium'u durdur",
+        rp_ready = "Hazır. Premium'u aç.",
+        rp_script_running = "Script çalışıyor",
+        rp_closed = "Premium kapatıldı",
+        rp_missing = "Premium script henüz eklenmedi",
+        rp_compile_error = "Derleme hatası: ",
+        rp_opened = "Premium açıldı",
+        rp_script_error = "Premium hata: ",
+        rp_finished = "Premium scripti bitti",
+        tfa_remote_missing = "Remote bulunamadı: ",
+        tfa_stand_error = "Stand_Upgrade hata: ",
+        tfa_equip_error = "Plot_EquipBest hata: ",
+        tfa_auto_start_off = "Auto Start kapalı",
+        tfa_waiting_char = "Karakter bekleniyor...",
+        tfa_flying_arena = "Arena'ya uçuluyor...",
+        tfa_flight_retry = "Uçuş tamamlanamadı, tekrar deneniyor...",
+        tfa_arrived = "Arena'ya varıldı. 2 sn sonra throw...",
+        tfa_throw_sent = "Throw gönderildi. 15 sn bekleniyor...",
+        tfa_throw_error = "Throw hata: ",
+        tfa_shop_cycle = "Shop_Buy 1..100 / 4 sn",
+        tfa_shop_missing = "Shop_Buy remote bulunamadı",
+        tfa_all_off = "Tüm özellikler kapatıldı",
+        tfa_stand_on = "Auto Stand Upgrade açık",
+        tfa_equip_on = "Auto Equip Best açık",
+        tfa_no_fly = "Uçamıyorum: karakter bulunamadı",
+        tfa_flying_manual = "Arena'ya uçuluyor (manuel)...",
+        tfa_arrived_manual = "Arena'ya varıldı (manuel uçuş)",
+        tfa_flight_failed = "Uçuş tamamlanamadı",
+        tfa_buy_on = "Auto Buy açık (1..100 / 4 sn)",
+        tfa_stand_interval = "Her ",
+        tfa_equip_interval = "Her ",
+        tfa_seconds_stand = " sn: Stand_Upgrade",
+        tfa_seconds_equip = " sn: Plot_EquipBest",
+        tfa_speed = "Hiz: ",
+        -- Muscle Legends menu strings
+        -- Throw Food For Animals
+        tfa_off = "KAPALI",
+        tfa_fly = "UCUŞ",
+        tfa_stop_all = "TÜMÜNÜ DURDUR",
+        tfa_auto_interval = "OTOMATİK ARALIK",
+        tfa_shop_prefix = "Shop_Buy: ",
+        tfa_row_start_title = "Otomatik Başlatma",
+        tfa_row_start_sub = "Uçuş -> 2s -> Atış -> 15s",
+        tfa_row_buy_title = "Otomatik Satın Al",
+        tfa_row_buy_sub = "Shop_Buy 1..100 / 4 sn",
+        -- Muscle Legends menu extras
+        ml_auto_train = "Otomatik Antrenman",
+        ml_auto_rebirth = "Otomatik Yeniden Doğuş",
+        ml_auto_claim = "Otomatik İade",
+        ml_auto_train_sub = "Eğitim uzaklarını ateşler | her 5 sonda tara",
+        ml_auto_rebirth_sub = "Yeniden doğuş ve prestij uzaklarını ateşler",
+        ml_auto_claim_sub = "Ödülleri, günlük hediyeleri ve spinleri toplar",
+        ml_fly = "Uçuş",
+        ml_fly_hint = "WASD + Space / Ctrl",
+        ml_noclip = "Noclip",
+        ml_noclip_hint = "Duvarlardan geç",
+        ml_jump = "Sonsuz Zıplama",
+        ml_jump_hint = "Ara sıra tekrar zıpla",
+        ml_afk = "Anti-AFK",
+        ml_afk_hint = "Boşta iken çevrimiçi kal",
+        ml_bright = "Tam Ekran",
+        ml_bright_hint = "Parlak, temiz ışık",
+        ml_reset = "Hareket Sıfırla",
+        ml_reset_hint = "Hız 16 | Zıplama 50",
+        ml_slider_walk = "Yürüyüş Hızı",
+        ml_slider_jump = "Zıplama Gücü",
+        ml_action_rejoin = "SUNUCUYA TEKRAR BAĞLAN",
+        ml_action_new = "YENİ SUNUCU",
+        ml_action_job = "İŞİDİ KOPYALA",
+        ml_action_reset = "KARAKTER SIFIRLA",
+        ml_logo = "ML",
+        ml_title = "MUSCLE LEGENDS",
+        ml_side_a = "MUSCLE",
+        ml_side_b = "LEGENDS",
+        ml_premium = "PREMIUM",
+        ml_nav = "NAVİYASYON",
+        ml_owner = "SAHIP  |  ",
+        ml_reset_action = "SIFIRAÇA",
+        ml_no_other_players = "Bu sunucudaki diğer oyuncular yok",
+        ml_action_teleport = "GEÇİŞ",
+        ml_auto_interval_set = "Aralık otomatik ayarlandı: ",
+        ml_nav_movement = "HAREKET",
+        ml_nav_movement_sub = "Hız, uçuş ve karakter araçları",
+        ml_nav_misc = "EKSTRA",
+        ml_nav_misc_sub = "Sunucu araçları ve oyuncu iletme",
+        rp_logo = "RP",
+        rp_title = "RAGDOLL PLAYGROUND",
+        tfa_logo = "TFA",
+        tfa_title = "THROW FOOD FOR ANIMALS",
+        rec_logo = "REC",
+        rec_title = "REMOTE EVENT COPIER",
+        ml_status_train = "ANTRENMAN",
+        ml_status_train_desc = "Güç antrenmanını otomatikleştir",
+        ml_status_connected = "BAĞLANDI",
+        ml_status_bar = "ML HUB",
+        ml_toggle_off = "KAPALI",
+        ml_toggle_on = "AÇIK",
+        ml_interval_label = "ARALIK  0.5s",
+        ml_rescan = "YENİDEN TARA",
+        ml_rescan_done = "TARANDI",
+        ml_remote_scan = "UZAK TARAMA",
+        ml_stats = "Antrenman 0 | Yeniden Doğuş 0 | İade 0",
+        ml_slider_hint = "Kaydırıcıyı ayarlamak için sürükle",
+        ml_players = "OYUNCULAR",
+        ml_refresh = "YENİLE",
+        ml_refresh_done = "YENİLENDİ",
+        ml_job = "İŞİDİ KOPYALA",
+        ml_job_copied = "İş ID kopyalandı.",
+        ml_job_unavailable = "İş ID burada kullanılamaz.",
+        ml_no_training = "Eğitim uzaklaması bulunamadı | manuel eğitim",
+        ml_no_rebirth = "Yeniden doğuş uzaklaması bulunamadı",
+        ml_no_claim = "İade alımı bulunamadı",
+        ml_fly_off = "Uçuş kapalı.",
+        ml_fly_on = "Uçuş açıldı | WASD + Space / Ctrl",
+        ml_fly_notready = "Uçuş: karakter hazır değil.",
+        ml_noclip_off = "Noclip kapandı.",
+        ml_noclip_on = "Noclip açıldı.",
+        ml_jump_off = "Sonsuz zıplama kapandı.",
+        ml_jump_on = "Sonsuz zıplama açıldı.",
+        ml_afk_off = "Anti-AFK kapandı.",
+        ml_afk_on = "Anti-AFK açıldı.",
+        ml_fullbright_off = "Tam ekran kapandı.",
+        ml_fullbright_on = "Tam ekran açıldı.",
+        ml_status_reset = "Hareket sıfırlandı | Hız 16 / Zıplama 50",
+        ml_status_reset_char = "Karakter sıfırlandı.",
+        ml_status_reset_miss = "Karakter bulunamadı.",
+        ml_status_teleported = "Teleport edildi: ",
+        ml_status_teleport_failed = "Hedef ulaşılamadı.",
+        ml_status_cannot_teleport = "Şu adrese teleport edilemez: ",
+        ml_status_rejoining = "Aynı sunucuya yeniden bağlanıyor...",
+        ml_status_rejoin_failed = "Yeniden bağlanılamadı: ",
+        ml_status_joining = "Yeni sunucuya bağlanıyor...",
+        ml_status_hop_failed = "Sunucu atlaması başarısız: ",
+        -- Remote Event Copier strings
+        rec_subtitle = "MONİTOR | KOPYALA | ÇAĞIR",
+        rec_search = "UZAKLARI ARA",
+        rec_search_hint = "İsim yaz... (Enter / 3 sn otomatik)",
+        rec_active_on = "Sadece aktif: AÇIK",
+        rec_active_off = "Sadece aktif: KAPALI",
+        rec_reset = "SIFIRAÇA",
+        rec_refresh = "YENİLE",
+        rec_owner = "Sahip: ",
+        rec_newest = "En yeni tetiklenen remote en üstte kalır",
+        rec_tracker_on = "takip açık",
+        rec_tracker_listening = "dinleyici modu",
+        rec_tracker_off = "takip kapalı",
+        rec_execute = "ÇAĞIR",
+        rec_copy = "KOPYALA",
+        rec_delete = "SİL",
+        rec_copied_code = "Kod kopyalandı: ",
+        rec_fired = "Tetiklendi",
+        rec_exec_copied = "Çağırıldı + kopyalandı: ",
+        rec_copied = "Kopyalandı",
+        rec_removed = "Listeden kaldırıldı: ",
+        rec_press = "Bir oyun anahtarı tetiklemek için, sonra Yenile'ye bas.",
+        rec_show_all = "Tümünü göster",
+        rec_scanned = "TARANDIDI",
+    },
+}
+
+local LH_Registry = {}
+
+local function LHt(key)
+    local t = LH_TEXT[LH_LANG] or LH_TEXT.EN
+    return t[key]
+end
+
+local function LHLines()
+    local t = LH_TEXT[LH_LANG] or LH_TEXT.EN
+    return t.update_lines
+end
+
+local function LHRegister(label, key)
+    if not label then return end
+    LH_Registry[#LH_Registry + 1] = { label = label, key = key }
+end
+
+local function LHApplyLanguage()
+    for _, item in ipairs(LH_Registry) do
+        if item.label and item.label.Parent then
+            local value = LHt(item.key)
+            if value ~= nil then
+                item.label.Text = value
+            end
+        end
+    end
+end
+
+local function LHSetLanguage(lang)
+    if lang ~= "EN" and lang ~= "TR" then return end
+    LH_LANG = lang
+    pcall(function() _G.LIFTHUB_LANG = lang end)
+    pcall(function() writefile("lifthub_lang.txt", lang) end)
+    LHApplyLanguage()
+end
+
+local function LHToggleLanguage()
+    LHSetLanguage(LH_LANG == "EN" and "TR" or "EN")
+end
+
+local function LHInstall(rootFrame, navFrame, zBase, opts)
+    if not rootFrame then return nil end
+    local z = zBase or 10
+    opts = opts or {}
+    local parent = navFrame or rootFrame
+    local footerPos = opts.footerPos or UDim2.new(0, 0, 1, -64)
+    local footerSize = opts.footerSize or UDim2.new(1, 0, 0, 64)
+
+    -- UPDATES sits at the top, SETTINGS sits directly below it.
+    local footer = new("Frame", {
+        Name = "LiftHubSettingsFooter",
+        BackgroundTransparency = 1,
+        Position = footerPos,
+        Size = footerSize,
+        ZIndex = z,
+    }, parent)
+
+    local updatesButton = new("TextButton", {
+        Name = "LiftHubUpdatesButton",
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(23, 31, 38),
+        BorderSizePixel = 0,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(0, 8, 0, 2),
+        Size = UDim2.new(1, -16, 0, 18),
+        Text = LHt("nav_updates"),
+        TextColor3 = Color3.fromRGB(255, 190, 60),
+        TextSize = 8,
+        ZIndex = z + 1,
+    }, footer)
+    round(updatesButton, 6)
+    stroke(updatesButton, Color3.fromRGB(38, 50, 59), 0.8)
+    LHRegister(updatesButton, "nav_updates")
+
+    local settingsButton = new("TextButton", {
+        Name = "LiftHubSettingsButton",
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(23, 31, 38),
+        BorderSizePixel = 0,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(0, 8, 0, 23),
+        Size = UDim2.new(1, -16, 0, 18),
+        Text = LHt("nav_settings") .. " (" .. LHt("lang_button") .. ")",
+        TextColor3 = Color3.fromRGB(0, 214, 152),
+        TextSize = 8,
+        ZIndex = z + 1,
+    }, footer)
+    round(settingsButton, 6)
+    stroke(settingsButton, Color3.fromRGB(38, 50, 59), 0.8)
+
+    local panel = new("Frame", {
+        Name = "LiftHubUpdatesPanel",
+        Active = true,
+        BackgroundColor3 = Color3.fromRGB(11, 16, 21),
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, -180, 0.5, -160),
+        Size = UDim2.new(0, 360, 0, 320),
+        Visible = false,
+        ZIndex = z + 2,
+    }, rootFrame)
+    round(panel, 12)
+    stroke(panel, Color3.fromRGB(0, 214, 152), 1.2)
+    local panelScale = new("UIScale", { Scale = 1 }, panel)
+
+    local panelAccent = new("Frame", {
+        BackgroundColor3 = Color3.fromRGB(0, 214, 152),
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 14, 0, 0),
+        Size = UDim2.new(1, -28, 0, 3),
+        ZIndex = z + 3,
+    }, panel)
+    round(panelAccent, 2)
+    grad(panelAccent, Color3.fromRGB(0, 214, 152), Color3.fromRGB(0, 168, 232), 0)
+
+    local panelTitle = new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(0, 16, 0, 14),
+        Size = UDim2.new(1, -60, 0, 22),
+        Text = LHt("updates_title"),
+        TextColor3 = Color3.fromRGB(236, 242, 247),
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = z + 3,
+    }, panel)
+    LHRegister(panelTitle, "updates_title")
+
+    local panelClose = new("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(23, 31, 38),
+        BorderSizePixel = 0,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(1, -36, 0, 12),
+        Size = UDim2.new(0, 24, 0, 24),
+        Text = LHt("close"),
+        TextColor3 = Color3.fromRGB(236, 76, 86),
+        TextSize = 9,
+        ZIndex = z + 3,
+    }, panel)
+    round(panelClose, 6)
+    LHRegister(panelClose, "close")
+
+    local versionBadge = new("Frame", {
+        BackgroundColor3 = Color3.fromRGB(15, 44, 38),
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 16, 0, 42),
+        Size = UDim2.new(0, 112, 0, 22),
+        ZIndex = z + 3,
+    }, panel)
+    round(versionBadge, 6)
+    stroke(versionBadge, Color3.fromRGB(0, 214, 152), 0.8)
+
+    local versionLabel = new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = LHt("version"),
+        TextColor3 = Color3.fromRGB(0, 214, 152),
+        TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        ZIndex = z + 4,
+    }, versionBadge)
+    LHRegister(versionLabel, "version")
+
+    local panelDivider = new("Frame", {
+        BackgroundColor3 = Color3.fromRGB(38, 50, 59),
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 16, 0, 68),
+        Size = UDim2.new(1, -32, 0, 1),
+        ZIndex = z + 3,
+    }, panel)
+
+    local linesFrame = new("Frame", {
+        BackgroundColor3 = Color3.fromRGB(17, 23, 29),
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 16, 0, 74),
+        Size = UDim2.new(1, -32, 1, -128),
+        ZIndex = z + 3,
+    }, panel)
+    round(linesFrame, 8)
+    stroke(linesFrame, Color3.fromRGB(38, 50, 59), 0.8)
+
+    local scroll = new("ScrollingFrame", {
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        CanvasSize = UDim2.new(0, 0, 0, 300),
+        Position = UDim2.new(0, 8, 0, 8),
+        Size = UDim2.new(1, -16, 1, -16),
+        ScrollBarThickness = 4,
+        ZIndex = z + 4,
+    }, linesFrame)
+
+    local panelExtra = new("TextButton", {
+        Name = "LiftHubXtraAdButton",
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(23, 31, 38),
+        BorderSizePixel = 0,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(0, 16, 1, -42),
+        Size = UDim2.new(1, -32, 0, 26),
+        Text = LHt("ad_extra"),
+        TextColor3 = Color3.fromRGB(255, 190, 60),
+        TextSize = 8,
+        ZIndex = z + 3,
+    }, panel)
+    round(panelExtra, 7)
+    stroke(panelExtra, Color3.fromRGB(38, 50, 59), 0.8)
+    LHRegister(panelExtra, "ad_extra")
+
+    local lineLabels = {}
+    local function refreshPanel()
+        local lines = LHLines()
+        scroll.CanvasSize = UDim2.new(0, 0, 0, math.max(300, #lines * 22 + 16))
+        for _, label in ipairs(lineLabels) do
+            if label.Parent then label:Destroy() end
+        end
+        lineLabels = {}
+        for i, line in ipairs(lines) do
+            local lineColor = Color3.fromRGB(200, 210, 218)
+            if i == 1 or string.find(line, "NEW", 1, true) or string.find(line, "YENİ", 1, true) then
+                lineColor = Color3.fromRGB(0, 214, 152)
+            elseif string.find(line, "INFO", 1, true) or string.find(line, "BİLGİ", 1, true) then
+                lineColor = Color3.fromRGB(0, 168, 232)
+            elseif string.find(line, "ARAYÜZ", 1, true) or string.find(line, "UI", 1, true) then
+                lineColor = Color3.fromRGB(255, 190, 60)
+            elseif string.find(line, "---", 1, true) then
+                lineColor = Color3.fromRGB(52, 68, 78)
+            end
+            local label = new("TextLabel", {
+                BackgroundTransparency = 1,
+                Font = Enum.Font.Gotham,
+                Position = UDim2.new(0, 4, 0, (i - 1) * 22 + 4),
+                Size = UDim2.new(1, -8, 0, 18),
+                Text = line,
+                TextColor3 = lineColor,
+                TextSize = 9,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = z + 5,
+            }, scroll)
+            lineLabels[i] = label
+        end
+        settingsButton.Text = LHt("nav_settings") .. " (" .. LHt("lang_button") .. ")"
+        if opts.onLanguageChange then opts.onLanguageChange() end
+    end
+    refreshPanel()
+
+    local function hoverFooter(button, highlight)
+        local idle = Color3.fromRGB(23, 31, 38)
+        local enter = function()
+            tween(button, 0.12, { BackgroundColor3 = highlight })
+        end
+        local leave = function()
+            tween(button, 0.12, { BackgroundColor3 = idle })
+        end
+        if bind then
+            bind(button.MouseEnter:Connect(enter))
+            bind(button.MouseLeave:Connect(leave))
+        else
+            button.MouseEnter:Connect(enter)
+            button.MouseLeave:Connect(leave)
+        end
+    end
+    hoverFooter(updatesButton, Color3.fromRGB(30, 52, 60))
+    hoverFooter(settingsButton, Color3.fromRGB(26, 52, 45))
+
+    local function wire(button, fn)
+        if bind then
+            bind(button.Activated:Connect(fn))
+        else
+            button.Activated:Connect(fn)
+        end
+    end
+
+    wire(updatesButton, function()
+        panel.Visible = not panel.Visible
+        if panel.Visible then
+            refreshPanel()
+            panelScale.Scale = 0.9
+            tween(panelScale, 0.22, { Scale = 1 }, Enum.EasingStyle.Back)
+        end
+    end)
+    wire(panelExtra, function()
+        local hook = _G.LIFTHUB_OPEN_XTRA
+        if type(hook) == "function" then
+            hook()
+        else
+            pcall(function()
+                if setclipboard then setclipboard(AD_LINK) end
+            end)
+        end
+    end)
+    wire(settingsButton, function()
+        LHToggleLanguage()
+        refreshPanel()
+    end)
+    wire(panelClose, function()
+        panel.Visible = false
+    end)
+
+    return panel
+end
+
+local function absolutePath(entry)
+    return entry.dir .. "/" .. entry.file
+end
+
+
+-- =========================================================
+-- HUB UI
+-- =========================================================
+local function createHub()
+    local sg = new("ScreenGui", {
+        Name = "HubMenu",
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        DisplayOrder = 820,
+    }, guiParent)
+
+    local root = new("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.new(0, 440, 0, 500),
+    }, sg)
+
+
+    local frame = new("Frame", {
+        Active = true,
+        BackgroundColor3 = BG,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 1, 0),
+    }, root)
+    round(frame, 16)
+    grad(frame, Color3.fromRGB(15, 21, 26), Color3.fromRGB(9, 13, 17), 90)
+    local frameStroke = stroke(frame, GREEN, 1.3)
+    grad(frameStroke, GREEN, BLUE, 90)
+
+    local accent = new("Frame", {
+        BackgroundColor3 = GREEN,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 18, 0, 0),
+        Size = UDim2.new(1, -36, 0, 3),
+    }, frame)
+    round(accent, 2)
+    grad(accent, GREEN, BLUE, 0)
+
+    local logo = new("Frame", {
+        BackgroundColor3 = GREEN,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 20, 0, 18),
+        Size = UDim2.new(0, 38, 0, 38),
+    }, frame)
+    round(logo, 10)
+    grad(logo, GREEN, BLUE, 45)
+    new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBlack,
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = "LH",
+        TextColor3 = Color3.fromRGB(8, 16, 14),
+        TextSize = 12,
+    }, logo)
+
+    local title = new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(0, 70, 0, 16),
+        Size = UDim2.new(1, -210, 0, 20),
+        Text = "LIFTHUB",
+        TextColor3 = TEXT,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, frame)
+    grad(title, TEXT, GREEN, 0)
+
+    local hubSubtitle = new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.Gotham,
+        Position = UDim2.new(0, 70, 0, 36),
+        Size = UDim2.new(1, -210, 0, 11),
+        Text = LHt("hub_subtitle"),
+        TextColor3 = MUTED,
+        TextSize = 7,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, frame)
+    LHRegister(hubSubtitle, "hub_subtitle")
+
+    local discordButton = new("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(88, 101, 242),
+        BorderSizePixel = 0,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(1, -118, 0, 18),
+        Size = UDim2.new(0, 64, 0, 22),
+        Text = LHt("discord"),
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 8,
+    }, frame)
+    round(discordButton, 6)
+    bind(discordButton.Activated:Connect(function()
+        if copyText(DISCORD_LINK) then
+            discordButton.Text = LHt("copied")
+        else
+            discordButton.Text = LHt("copy_failed")
+        end
+        task.delay(1.2, function()
+            if discordButton.Parent then
+                discordButton.Text = LHt("discord")
+            end
+        end)
+    end))
+
+    local closeButton = new("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = CARD,
+        BorderSizePixel = 0,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(1, -44, 0, 16),
+        Size = UDim2.new(0, 26, 0, 26),
+        Text = LHt("close"),
+        TextColor3 = RED,
+        TextSize = 10,
+    }, frame)
+    round(closeButton, 7)
+
+    new("Frame", {
+        BackgroundColor3 = CARD,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 20, 0, 66),
+        Size = UDim2.new(1, -40, 0, 1),
+    }, frame)
+
+    local sidebar = new("Frame", {
+        BackgroundColor3 = PANEL,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 20, 0, 96),
+        Size = UDim2.new(0, 168, 0, 388),
+    }, frame)
+    round(sidebar, 10)
+    stroke(sidebar, Color3.fromRGB(38, 50, 59), 0.8)
+
+    local hubNavHeader = new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(0, 12, 0, 10),
+        Size = UDim2.new(1, -24, 0, 14),
+        Text = LHt("nav_hubs"),
+        TextColor3 = GREEN,
+        TextSize = 8,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, sidebar)
+    LHRegister(hubNavHeader, "nav_hubs")
+
+    local scroller = new("ScrollingFrame", {
+        Active = true,
+        BackgroundColor3 = CARD,
+        BorderSizePixel = 0,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0, 8, 0, 30),
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = BLUE,
+        Size = UDim2.new(1, -16, 1, -102),
+    }, sidebar)
+    round(scroller, 8)
+    stroke(scroller, Color3.fromRGB(30, 42, 50), 0.8)
+
+    local listLayout = new("UIListLayout", {
+        Padding = UDim.new(0, 6),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, scroller)
+
+    new("UIPadding", {
+        PaddingBottom = UDim.new(0, 8),
+        PaddingLeft = UDim.new(0, 4),
+        PaddingRight = UDim.new(0, 4),
+        PaddingTop = UDim.new(0, 8),
+    }, scroller)
+
+    bind(listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        scroller.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 16)
+    end))
+
+    local contentPane = new("Frame", {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 200, 0, 96),
+        Size = UDim2.new(1, -220, 0, 388),
+    }, frame)
+
+    local contentTitle = new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(1, 0, 0, 20),
+        Text = LHt("hub_content_title"),
+        TextColor3 = TEXT,
+        TextSize = 15,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, contentPane)
+    grad(contentTitle, TEXT, GREEN, 0)
+    LHRegister(contentTitle, "hub_content_title")
+
+    local contentHint = new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.Gotham,
+        Position = UDim2.new(0, 0, 0, 24),
+        Size = UDim2.new(1, 0, 0, 24),
+        Text = LHt("hub_content_hint"),
+        TextColor3 = MUTED,
+        TextSize = 8,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top,
+    }, contentPane)
+    LHRegister(contentHint, "hub_content_hint")
+
+    local contentCard = new("Frame", {
+        BackgroundColor3 = PANEL,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0, 58),
+        Size = UDim2.new(1, 0, 0, 236),
+    }, contentPane)
+    round(contentCard, 10)
+    stroke(contentCard, Color3.fromRGB(38, 50, 59), 0.8)
+
+    new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBlack,
+        Position = UDim2.new(0, 14, 0, 16),
+        Size = UDim2.new(1, -28, 0, 26),
+        Text = "LIFTHUB",
+        TextColor3 = GREEN,
+        TextSize = 20,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, contentCard)
+
+    new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.Gotham,
+        Position = UDim2.new(0, 14, 0, 50),
+        Size = UDim2.new(1, -28, 0, 16),
+        Text = "OWNER  |  " .. OWNER,
+        TextColor3 = MUTED,
+        TextSize = 8,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, contentCard)
+
+    local contentDiscord = new("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(88, 101, 242),
+        BorderSizePixel = 0,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(0, 14, 0, 82),
+        Size = UDim2.new(1, -28, 0, 28),
+        Text = LHt("discord"),
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 9,
+    }, contentCard)
+    round(contentDiscord, 7)
+    LHRegister(contentDiscord, "discord")
+    bind(contentDiscord.Activated:Connect(function()
+        if copyText(DISCORD_LINK) then
+            contentDiscord.Text = LHt("copied")
+            task.delay(1.2, function()
+                if contentDiscord.Parent then
+                    contentDiscord.Text = LHt("discord")
+                end
+            end)
+        end
+    end))
+
+    local statusBox = new("Frame", {
+        BackgroundColor3 = PANEL,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 1, -28),
+        Size = UDim2.new(1, 0, 0, 28),
+    }, contentPane)
+    round(statusBox, 7)
+    local statusStroke = stroke(statusBox, Color3.fromRGB(38, 50, 59), 0.8)
+
+    local statusDot = new("Frame", {
+        BackgroundColor3 = MUTED,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 11, 0, 11),
+        Size = UDim2.new(0, 6, 0, 6),
+    }, statusBox)
+    round(statusDot, 3)
+
+    local statusLabel = new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.Gotham,
+        Position = UDim2.new(0, 26, 0, 0),
+        Size = UDim2.new(1, -36, 1, 0),
+        Text = LHt("status_ready"),
+        TextColor3 = MUTED,
+        TextSize = 8.5,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, statusBox)
+    LHRegister(statusLabel, "status_ready")
+
+    local camera = workspace.CurrentCamera
+    local viewport = camera and camera.ViewportSize or Vector2.new(1280, 720)
+    local factor = math.min(1, (viewport.X - 48) / 440, (viewport.Y - 48) / 500)
+    factor = math.max(0.55, factor)
+    local menuScale = new("UIScale", { Scale = factor * 0.86 }, root)
+    root.Position = UDim2.new(0.5, 0, 0.5, 24)
+    tween(menuScale, 0.35, { Scale = factor }, Enum.EasingStyle.Back)
+    tween(root, 0.35, { Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Back)
+
+    local noteButtons = {}
+
+    local function setStatus(text, color)
+        statusLabel.Text = text
+        statusLabel.TextColor3 = color or MUTED
+        statusDot.BackgroundColor3 = color or MUTED
+        statusStroke.Color = color or Color3.fromRGB(38, 50, 59)
+    end
+
+    local closeWatchUntil = 0
+    local watchedContainers = {}
+
+    local skipNames = {
+        HubMenu = true,
+        ThrowFoodAnimals = true,
+        RemoteEventCopier = true,
+        RemoteEventCopier_Key = true,
+        AmongUsAdPopup = true,
+    }
+
+    local function hasOwnClose(target)
+        local ok, found = pcall(function()
+            for _, item in ipairs(target:GetDescendants()) do
+                if item:IsA("TextButton") then
+                    local text = item.Text
+                    if text == LHt("close") or text == "x" or text == "×" or text == "✕" then
+                        return true
+                    end
+                end
+            end
+            return false
+        end)
+        if ok then
+            return found
+        end
+        return false
+    end
+
+    local function addCloseOverlay(target)
+        if not target or not target.Parent then
+            return
+        end
+        if target == sg or skipNames[target.Name] then
+            return
+        end
+        if target:FindFirstChild("HubUniversalClose") then
+            return
+        end
+        if hasOwnClose(target) then
+            return
+        end
+
+        local button = new("TextButton", {
+            Name = "HubUniversalClose",
+            AnchorPoint = Vector2.new(1, 0),
+            AutoButtonColor = false,
+            BackgroundColor3 = Color3.fromRGB(22, 28, 34),
+            BorderColor3 = RED,
+            BorderSizePixel = 1,
+            Font = Enum.Font.GothamBold,
+            Position = UDim2.new(1, -10, 0, target.IgnoreGuiInset and 42 or 8),
+            Size = UDim2.new(0, 30, 0, 30),
+            Text = LHt("close"),
+            TextColor3 = TEXT,
+            TextSize = 12,
+            ZIndex = 1000000,
+        }, target)
+        round(button, 15)
+
+        bind(button.Activated:Connect(function()
+            pcall(function()
+                target:Destroy()
+            end)
+        end))
+    end
+
+    local function watchContainer(container)
+        if not container then
+            return
+        end
+        for _, known in ipairs(watchedContainers) do
+            if known == container then
+                return
+            end
+        end
+        table.insert(watchedContainers, container)
+
+        pcall(function()
+            local conn = container.ChildAdded:Connect(function(child)
+                if os.clock() > closeWatchUntil then
+                    return
+                end
+                if not child:IsA("ScreenGui") then
+                    return
+                end
+                task.delay(0.7, function()
+                    if child.Parent and os.clock() <= closeWatchUntil + 3 then
+                        addCloseOverlay(child)
+                    end
+                end)
+            end)
+            table.insert(_G.HUB_WatchConns, conn)
+        end)
+    end
+
+    local core
+    pcall(function()
+        core = game:GetService("CoreGui")
+    end)
+    watchContainer(core)
+    watchContainer(LP:FindFirstChild("PlayerGui"))
+    local hiddenUi
+    pcall(function()
+        if gethui then
+            hiddenUi = gethui()
+        end
+    end)
+    if hiddenUi and hiddenUi ~= core then
+        watchContainer(hiddenUi)
+    end
+
+    local function readScript(entry)
+        if not readfile then
+            return nil, LHt("err_readfile")
+        end
+        local candidates = {
+            absolutePath(entry),
+            entry.file,
+            "scripts/" .. entry.file,
+            "autoexec/" .. entry.file,
+        }
+        for _, path in ipairs(candidates) do
+            local ok, source = pcall(readfile, path)
+            if ok and type(source) == "string" and #source > 10 then
+                return source, path
+            end
+        end
+        return nil, LHt("err_not_found") .. entry.file
+    end
+
+    local function openScript(entry)
+        local source, pathOrError = readScript(entry)
+        if not source then
+            setStatus(tostring(pathOrError) .. LHt("err_copy_hint"), RED)
+            return
+        end
+
+        local loader = loadstring or load
+        if not loader then
+            setStatus(LHt("err_loadstring"), RED)
+            return
+        end
+
+        closeWatchUntil = os.clock() + 8
+        local chunk, compileError = loader(source, entry.file)
+        if not chunk then
+            setStatus(LHt("err_compile") .. tostring(compileError), RED)
+            return
+        end
+
+        setStatus(LHt("status_opening") .. entry.name, BLUE)
+        task.spawn(function()
+            local ok, runError = pcall(chunk)
+            if not ok then
+                setStatus(LHt("status_error") .. tostring(runError), RED)
+            else
+                setStatus(LHt("status_opened") .. entry.name, GREEN)
+            end
+        end)
+    end
+
+    for index, entry in ipairs(SCRIPTS) do
+        local row = new("Frame", {
+            BackgroundColor3 = CARD,
+            BorderSizePixel = 0,
+            LayoutOrder = index,
+            Size = UDim2.new(1, -8, 0, 64),
+        }, scroller)
+        round(row, 8)
+        stroke(row, Color3.fromRGB(38, 50, 59), 0.8)
+
+        local rowAccent = new("Frame", {
+            BackgroundColor3 = GREEN,
+            BackgroundTransparency = 0.55,
+            BorderSizePixel = 0,
+            Position = UDim2.new(0, 0, 0.5, -10),
+            Size = UDim2.new(0, 3, 0, 20),
+        }, row)
+        round(rowAccent, 2)
+        grad(rowAccent, GREEN, BLUE, 90)
+
+        local nameButton = new("TextButton", {
+            AutoButtonColor = false,
+            BackgroundTransparency = 1,
+            Font = Enum.Font.GothamBold,
+            Position = UDim2.new(0, 10, 0, 7),
+            Size = UDim2.new(1, -20, 0, 16),
+            Text = entry.name,
+            TextColor3 = TEXT,
+            TextSize = 9.5,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            TextXAlignment = Enum.TextXAlignment.Left,
+        }, row)
+
+        local noteButton = new("TextButton", {
+            AutoButtonColor = false,
+            BackgroundTransparency = 1,
+            Font = Enum.Font.Gotham,
+            Position = UDim2.new(0, 10, 0, 25),
+            Size = UDim2.new(1, -20, 0, 12),
+            Text = entry.file,
+            TextColor3 = MUTED,
+            TextSize = 7,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            TextXAlignment = Enum.TextXAlignment.Left,
+        }, row)
+        table.insert(noteButtons, { button = noteButton, file = entry.file })
+
+        local openButton = new("TextButton", {
+            AutoButtonColor = false,
+            BorderSizePixel = 0,
+            Font = Enum.Font.GothamBold,
+            Position = UDim2.new(0, 10, 0, 42),
+            Size = UDim2.new(1, -20, 0, 16),
+            Text = LHt("open"),
+            TextColor3 = Color3.fromRGB(8, 16, 14),
+            TextSize = 7.5,
+        }, row)
+        round(openButton, 5)
+        grad(openButton, GREEN, BLUE, 0)
+        LHRegister(openButton, "open")
+
+        bind(nameButton.Activated:Connect(function()
+            openScript(entry)
+        end))
+
+        bind(noteButton.Activated:Connect(function()
+            if copyText(absolutePath(entry)) then
+                setStatus(LHt("status_path") .. entry.file, BLUE)
+            end
+        end))
+
+        bind(openButton.Activated:Connect(function()
+            openScript(entry)
+        end))
+    end
+
+    local function closeHub()
+        closeWatchUntil = 0
+        pcall(function()
+            sg:Destroy()
+        end)
+    end
+
+    bind(closeButton.Activated:Connect(closeHub))
+    makeDraggable(frame, title)
+    LHInstall(frame, sidebar, 60, {
+        onLanguageChange = function()
+            for _, item in ipairs(noteButtons) do
+                item.button.Text = item.file
+            end
+        end,
+    })
+end
+
+-- =========================================================
+-- AMONG US AD POPUP (her execute'da gelir)
+-- =========================================================
+
+local function showAdPopup()
+    pcall(function()
+        local old = findGui("AmongUsAdPopup")
+        if old then
+            old:Destroy()
+        end
+    end)
+
+    local sg = new("ScreenGui", {
+        Name = "AmongUsAdPopup",
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        DisplayOrder = 960,
+    }, guiParent)
+
+    local card = new("Frame", {
+        Active = true,
+        AnchorPoint = Vector2.new(1, 0),
+        BackgroundColor3 = PANEL,
+        BorderSizePixel = 0,
+        Position = UDim2.new(1, -20, 0, 18),
+        Size = UDim2.new(0, 340, 0, 152),
+    }, sg)
+    round(card, 14)
+    local cardStroke = stroke(card, BLUE, 1.3)
+    grad(cardStroke, GREEN, BLUE, 90)
+
+    local accent = new("Frame", {
+        BackgroundColor3 = GREEN,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 16, 0, 0),
+        Size = UDim2.new(1, -32, 0, 3),
+    }, card)
+    round(accent, 2)
+    grad(accent, GREEN, BLUE, 0)
+
+    local badge = new("Frame", {
+        BackgroundColor3 = DIM_GREEN,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 16, 0, 14),
+        Size = UDim2.new(0, 62, 0, 16),
+    }, card)
+    round(badge, 4)
+    new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = LHt("ad_extra"),
+        TextColor3 = GREEN,
+        TextSize = 7,
+    }, badge)
+
+    new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(0, 16, 0, 36),
+        Size = UDim2.new(1, -52, 0, 18),
+        Text = LHt("ad_title"),
+        TextColor3 = TEXT,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, card)
+
+    new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.Gotham,
+        Position = UDim2.new(0, 16, 0, 54),
+        Size = UDim2.new(1, -32, 0, 12),
+        Text = LHt("ad_desc"),
+        TextColor3 = MUTED,
+        TextSize = 8.5,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, card)
+
+    local linkBox = new("Frame", {
+        BackgroundColor3 = BG,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 16, 0, 72),
+        Size = UDim2.new(1, -32, 0, 25),
+    }, card)
+    round(linkBox, 6)
+    new("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.Gotham,
+        Position = UDim2.new(0, 8, 0, 0),
+        Size = UDim2.new(1, -16, 1, 0),
+        Text = AD_LINK,
+        TextColor3 = Color3.fromRGB(116, 190, 220),
+        TextSize = 7.5,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, linkBox)
+
+    local copyButton = new("TextButton", {
+        AutoButtonColor = false,
+        BorderSizePixel = 0,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(0, 16, 0, 108),
+        Size = UDim2.new(0, 112, 0, 28),
+        Text = LHt("ad_copy"),
+        TextColor3 = Color3.fromRGB(8, 16, 14),
+        TextSize = 9,
+    }, card)
+    round(copyButton, 7)
+    grad(copyButton, GREEN, BLUE, 0)
+    bind(copyButton.Activated:Connect(function()
+        local copied = copyText(AD_LINK)
+        copyButton.Text = copied and LHt("copied") or LHt("copy_failed")
+        task.delay(1.4, function()
+            if copyButton.Parent then
+                copyButton.Text = LHt("ad_copy")
+            end
+        end)
+    end))
+
+    local discordButton = new("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(88, 101, 242),
+        BorderSizePixel = 0,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(0, 136, 0, 108),
+        Size = UDim2.new(0, 88, 0, 28),
+        Text = LHt("discord"),
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 9,
+    }, card)
+    round(discordButton, 7)
+    bind(discordButton.Activated:Connect(function()
+        local copied = copyText(DISCORD_LINK)
+        discordButton.Text = copied and LHt("copied") or LHt("copy_failed")
+        task.delay(1.4, function()
+            if discordButton.Parent then
+                discordButton.Text = LHt("discord")
+            end
+        end)
+    end))
+
+    local closeButton = new("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = CARD,
+        BorderSizePixel = 0,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(1, -32, 0, 14),
+        Size = UDim2.new(0, 20, 0, 20),
+        Text = LHt("close"),
+        TextColor3 = RED,
+        TextSize = 9,
+    }, card)
+    round(closeButton, 5)
+    bind(closeButton.Activated:Connect(function()
+        pcall(function()
+            sg:Destroy()
+        end)
+    end))
+end
+
+_G.LIFTHUB_OPEN_XTRA = showAdPopup
+showAdPopup()
+
+createHub()
