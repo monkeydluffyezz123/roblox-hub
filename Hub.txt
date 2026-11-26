@@ -1,0 +1,288 @@
+-- hub4.txt — Yeni script bildirim menüsü
+-- Execute edildiğinde TR uyarı, altında İngilizcesi ve en altta yeni script gösterilir.
+-- KOPYALA = scripti panoya kopyalar, X = menüyü kapatır.
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+
+local GUI_NAME = "Hub4NewScriptMenu"
+
+local NEW_SCRIPT = [[script_key = "LP-0F96759D9B66FB7E";
+loadstring(game:HttpGet("https://cdn.luaprotect.dev/u/3e0424/Fp-EsEyBmU0lo1l9"))()]]
+
+local TR_TEXT = "Bu script değişti, yeni script şu:"
+local EN_TEXT = "This script has changed, the new script is:"
+
+local CoreGui
+pcall(function()
+    CoreGui = game:GetService("CoreGui")
+end)
+
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local guiParent
+pcall(function()
+    if gethui then
+        guiParent = gethui()
+    end
+end)
+if not guiParent then
+    guiParent = CoreGui
+end
+if not guiParent then
+    guiParent = playerGui
+end
+
+-- Eski menü açıksa kaldır
+local parents = { playerGui }
+if CoreGui then
+    table.insert(parents, 1, CoreGui)
+end
+if guiParent ~= CoreGui and guiParent ~= playerGui then
+    table.insert(parents, 1, guiParent)
+end
+for _, parent in ipairs(parents) do
+    local old = parent:FindFirstChild(GUI_NAME)
+    if old then
+        old:Destroy()
+    end
+end
+
+-- ---------------------------------------------------------------
+-- Yardımcılar
+-- ---------------------------------------------------------------
+local function addCorner(instance, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius)
+    c.Parent = instance
+    return c
+end
+
+local function addStroke(instance, color, thickness)
+    local s = Instance.new("UIStroke")
+    s.Color = color
+    s.Thickness = thickness or 1
+    s.Parent = instance
+    return s
+end
+
+local function copyToClipboard(text)
+    local fn
+    pcall(function()
+        fn = setclipboard or toclipboard
+    end)
+    if type(fn) == "function" then
+        local ok = pcall(fn, text)
+        if ok then
+            return true
+        end
+    end
+    return false
+end
+
+-- ---------------------------------------------------------------
+-- Pencere
+-- ---------------------------------------------------------------
+local screen = Instance.new("ScreenGui")
+screen.Name = GUI_NAME
+screen.ResetOnSpawn = false
+screen.IgnoreGuiInset = true
+screen.DisplayOrder = 999
+screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local parented = false
+pcall(function()
+    screen.Parent = guiParent
+    parented = true
+end)
+if not parented then
+    screen.Parent = playerGui
+end
+
+local main = Instance.new("Frame")
+main.Name = "Main"
+main.AnchorPoint = Vector2.new(0.5, 0.5)
+main.Position = UDim2.fromScale(0.5, 0.5)
+main.Size = UDim2.fromOffset(540, 320)
+main.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+main.BackgroundTransparency = 0.03
+main.BorderSizePixel = 0
+main.Active = true
+main.Parent = screen
+addCorner(main, 10)
+addStroke(main, Color3.fromRGB(70, 70, 70), 1)
+
+local header = Instance.new("Frame")
+header.Name = "Header"
+header.Position = UDim2.fromOffset(0, 0)
+header.Size = UDim2.new(1, 0, 0, 44)
+header.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+header.BorderSizePixel = 0
+header.Parent = main
+addCorner(header, 10)
+
+local headerLine = Instance.new("Frame")
+headerLine.Position = UDim2.new(0, 0, 1, -2)
+headerLine.Size = UDim2.new(1, 0, 0, 2)
+headerLine.BackgroundColor3 = Color3.fromRGB(0, 200, 140)
+headerLine.BorderSizePixel = 0
+headerLine.Parent = header
+
+local title = Instance.new("TextLabel")
+title.BackgroundTransparency = 1
+title.Position = UDim2.fromOffset(16, 0)
+title.Size = UDim2.new(1, -70, 1, 0)
+title.Font = Enum.Font.GothamBold
+title.Text = "HUB4  |  YENİ SCRIPT / NEW SCRIPT"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 16
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = header
+
+local close = Instance.new("TextButton")
+close.Name = "Close"
+close.AnchorPoint = Vector2.new(1, 0.5)
+close.Position = UDim2.new(1, -12, 0.5, 0)
+close.Size = UDim2.fromOffset(28, 28)
+close.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+close.BorderSizePixel = 0
+close.Font = Enum.Font.GothamBold
+close.Text = "X"
+close.TextColor3 = Color3.fromRGB(255, 255, 255)
+close.TextSize = 14
+close.Parent = header
+addCorner(close, 6)
+
+local trLabel = Instance.new("TextLabel")
+trLabel.Name = "TurkishNotice"
+trLabel.BackgroundTransparency = 1
+trLabel.Position = UDim2.fromOffset(18, 58)
+trLabel.Size = UDim2.new(1, -36, 0, 28)
+trLabel.Font = Enum.Font.GothamBold
+trLabel.Text = TR_TEXT
+trLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+trLabel.TextSize = 18
+trLabel.TextWrapped = true
+trLabel.TextXAlignment = Enum.TextXAlignment.Left
+trLabel.Parent = main
+
+local enLabel = Instance.new("TextLabel")
+enLabel.Name = "EnglishNotice"
+enLabel.BackgroundTransparency = 1
+enLabel.Position = UDim2.fromOffset(18, 90)
+enLabel.Size = UDim2.new(1, -36, 0, 24)
+enLabel.Font = Enum.Font.Gotham
+enLabel.Text = EN_TEXT
+enLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+enLabel.TextSize = 14
+enLabel.TextWrapped = true
+enLabel.TextXAlignment = Enum.TextXAlignment.Left
+enLabel.Parent = main
+
+local box = Instance.new("TextBox")
+box.Name = "NewScript"
+box.Position = UDim2.fromOffset(18, 122)
+box.Size = UDim2.new(1, -36, 0, 124)
+box.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
+box.BorderSizePixel = 0
+box.ClearTextOnFocus = false
+box.Font = Enum.Font.Code
+box.MultiLine = true
+box.Text = NEW_SCRIPT
+box.TextColor3 = Color3.fromRGB(230, 255, 240)
+box.TextSize = 13
+box.TextWrapped = true
+box.TextXAlignment = Enum.TextXAlignment.Left
+box.TextYAlignment = Enum.TextYAlignment.Top
+box.Parent = main
+addCorner(box, 6)
+addStroke(box, Color3.fromRGB(50, 50, 50), 1)
+pcall(function()
+    box.ReadOnly = true
+end)
+
+local boxPadding = Instance.new("UIPadding")
+boxPadding.PaddingTop = UDim.new(0, 8)
+boxPadding.PaddingLeft = UDim.new(0, 8)
+boxPadding.PaddingRight = UDim.new(0, 8)
+boxPadding.Parent = box
+
+local copyButton = Instance.new("TextButton")
+copyButton.Name = "CopyButton"
+copyButton.Position = UDim2.fromOffset(18, 258)
+copyButton.Size = UDim2.fromOffset(130, 32)
+copyButton.BackgroundColor3 = Color3.fromRGB(0, 200, 140)
+copyButton.BorderSizePixel = 0
+copyButton.Font = Enum.Font.GothamBold
+copyButton.Text = "KOPYALA"
+copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+copyButton.TextSize = 14
+copyButton.Parent = main
+addCorner(copyButton, 6)
+
+local status = Instance.new("TextLabel")
+status.Name = "Status"
+status.Position = UDim2.fromOffset(160, 258)
+status.Size = UDim2.new(1, -178, 0, 32)
+status.BackgroundTransparency = 1
+status.Font = Enum.Font.Gotham
+status.Text = "KOPYALA = panoya kopyala  |  X = kapat"
+status.TextColor3 = Color3.fromRGB(150, 150, 150)
+status.TextSize = 12
+status.TextWrapped = true
+status.TextXAlignment = Enum.TextXAlignment.Left
+status.Parent = main
+
+-- ---------------------------------------------------------------
+-- İşlemler
+-- ---------------------------------------------------------------
+close.Activated:Connect(function()
+    screen:Destroy()
+end)
+
+copyButton.Activated:Connect(function()
+    local ok = copyToClipboard(NEW_SCRIPT)
+    status.Text = ok and "Script panoya kopyalandı." or "Kopyalama başarısız."
+    status.TextColor3 = ok and Color3.fromRGB(0, 200, 140) or Color3.fromRGB(255, 90, 90)
+    if ok then
+        task.delay(2, function()
+            if status.Parent then
+                status.Text = "KOPYALA = panoya kopyala  |  X = kapat"
+                status.TextColor3 = Color3.fromRGB(150, 150, 150)
+            end
+        end)
+    end
+end)
+
+-- Sürükleme
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = main.Position
+    end
+end)
+
+header.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
